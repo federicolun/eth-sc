@@ -1,61 +1,74 @@
-import { getEthArs } from "../lib/price-sources.js";
-import { computeFee } from "../lib/fee.js";
-import { normalize } from "../lib/fx.js";
 import { cors } from "../lib/cors.js";
 
 export default async function handler(req, res) {
-  cors(res, process.env.CORS_ORIGIN);
-  if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    cors(res, process.env.CORS_ORIGIN);
+    if (req.method === "OPTIONS") return res.status(200).end();
+    if (req.method !== "POST")
+        return res.status(405).json({ error: "Method not allowed" });
 
-  try {
-    const { amountEth, fee, feeReceiver } = req.body || {};
-    if (typeof amountEth !== "number") return res.status(400).json({ error: "amountEth requerido" });
-    if (!fee || !fee.type) return res.status(400).json({ error: "fee requerido" });
-    if (!feeReceiver || !feeReceiver.type) return res.status(400).json({ error: "feeReceiver requerido" });
+    try {
+        const {
+            amountEth = 0.1,
+            fee = { type: "percent", value: 0.65 }
+        } = req.body || {};
 
-    const { priceArs } = await getEthArs(process.env);
-    const subtotal = amountEth * priceArs;
-    const feeArs = computeFee(subtotal, fee);
+        // ⚠️ Esto deberías reemplazarlo por una consulta real a /api/price
+        const priceArs = 7000000;
+        const subtotal = amountEth * priceArs;
+        const feeAmount =
+            fee.type === "percent"
+                ? subtotal * (fee.value / 100)
+                : fee.value;
 
-    let transferId = null;
+        const token = process.env.MP_ACCESS_TOKEN;
+        if (!token)
+            return res.status(500).json({ error: "MP_ACCESS_TOKEN not configured" });
 
-    if (feeReceiver.type === "bank") {
-      const token = process.env.MP_ACCESS_TOKEN;
-      if (!token) return res.status(500).json({ error: "MP_ACCESS_TOKEN missing" });
-      const payerEmail = process.env.MP_PAYER_EMAIL || feeReceiver.payerEmail || null;
+        const prefBody = {
+            items: [
+                {
+                    title: "Cobro fee ETH",
+                    quantity: 1,
+                    currency_id: "ARS",
+                    unit_price: Math.round(feeAmount * 100) / 100
+                }
+            ],
+            payer: {
+                email: process.env.MP_PAYER_EMAIL
+            },
+            back_urls: {
+                success: "https://eth-sc.vercel.app/success",
+                failure: "https://eth-sc.vercel.app/failure",
+                pending: "https://eth-sc.vercel.app/pending"
+            },
+            auto_return: "approved"
+        };
 
-      const body = {
-        transaction_amount: Number(feeArs.toFixed(2)),
-        description: "ETH quote fee",
-        payment_method_id: "account_money",
-        ...(payerEmail ? { payer: { email: payerEmail } } : {})
-      };
+        const mpResp = await fetch(
+            "https://api.mercadopago.com/checkout/preferences",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify(prefBody)
+            }
+        );
 
-      const mp = await fetch("https://api.mercadopago.com/v1/payments", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify(body)
-      });
-      const mpRes = await mp.json();
-      if (!mp.ok) return res.status(502).json({ error: "mp_error", detail: mpRes });
-      transferId = `mp_${mpRes.id}`;
-    } else if (feeReceiver.type === "wallet") {
-      transferId = `wallet_pending_${crypto.randomUUID()}`;
-    } else {
-      return res.status(400).json({ error: "feeReceiver.type inválido" });
+        const data = await mpResp.json();
+        if (!mpResp.ok) {
+            console.error("MP error:", data);
+            return res.status(500).json({ error: "mp_error", detail: data });
+        }
+
+        return res.status(200).json({
+            ok: true,
+            init_point: data.init_point,
+            sandbox_init_point: data.sandbox_init_point
+        });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ error: "internal_error", detail: String(err) });
     }
-
-    return res.status(200).json({
-      ok: true,
-      feeArs: normalize(feeArs),
-      subtotalArs: normalize(subtotal),
-      transferId,
-    });
-  } catch (e) {
-    return res.status(500).json({ error: "charge_failed", detail: String(e) });
-  }
 }
