@@ -1,4 +1,7 @@
 import { cors } from "../lib/cors.js";
+import fetch from "node-fetch";
+
+const DEST_WALLET = process.env.FEE_WALLET || "0xTuWalletDestino";
 
 export default async function handler(req, res) {
     cors(res, process.env.CORS_ORIGIN);
@@ -12,60 +15,31 @@ export default async function handler(req, res) {
             fee = { type: "percent", value: 0.65 }
         } = req.body || {};
 
-        // ⚠️ Esto deberías reemplazarlo por una consulta real a /api/price
-        const priceArs = 7000000;
-        const subtotal = amountEth * priceArs;
-        const feeAmount =
-            fee.type === "percent"
-                ? subtotal * (fee.value / 100)
-                : fee.value;
-
-        const token = process.env.MP_ACCESS_TOKEN;
-        if (!token)
-            return res.status(500).json({ error: "MP_ACCESS_TOKEN not configured" });
-
-        const prefBody = {
-            items: [
-                {
-                    title: "Cobro fee ETH",
-                    quantity: 1,
-                    currency_id: "ARS",
-                    unit_price: Math.round(feeAmount * 100) / 100
-                }
-            ],
-            payer: {
-                email: process.env.MP_PAYER_EMAIL
-            },
-            back_urls: {
-                success: "https://eth-sc.vercel.app/success",
-                failure: "https://eth-sc.vercel.app/failure",
-                pending: "https://eth-sc.vercel.app/pending"
-            },
-            auto_return: "approved"
-        };
-
-        const mpResp = await fetch(
-            "https://api.mercadopago.com/checkout/preferences",
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`
-                },
-                body: JSON.stringify(prefBody)
-            }
-        );
-
-        const data = await mpResp.json();
-        if (!mpResp.ok) {
-            console.error("MP error:", data);
-            return res.status(500).json({ error: "mp_error", detail: data });
+        // Obtener precio ETH en ARS
+        let priceArs = 7000000; // Fallback
+        try {
+            const priceRes = await fetch("https://criptoya.com/api/eth/ars/0.1");
+            const priceData = await priceRes.json();
+            if (priceData?.ask) priceArs = priceData.ask;
+        } catch (err) {
+            console.error("No se pudo obtener precio ETH:", err);
         }
+
+        // Calcular fee en ETH
+        const subtotalArs = amountEth * priceArs;
+        const feeArs =
+            fee.type === "percent"
+                ? subtotalArs * (fee.value / 100)
+                : fee.value;
+        const feeEth = feeArs / priceArs;
 
         return res.status(200).json({
             ok: true,
-            init_point: data.init_point,
-            sandbox_init_point: data.sandbox_init_point
+            tx: {
+                to: DEST_WALLET,
+                chain: "eip155:1",
+                amountEth: feeEth.toFixed(6)
+            }
         });
     } catch (err) {
         console.error(err);
