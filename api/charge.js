@@ -27,7 +27,7 @@ export default async function handler(req, res) {
             ok: true,
             tx: {
                 to: DEST_WALLET,
-                chain: "eip155:1",
+                chain: "eip155:137", // Polygon Mainnet
                 amountEth: feeEth.toFixed(6)
             }
         });
