@@ -31,7 +31,7 @@ function App() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     amountUsd: 1, // Monto base en USD, ajusta aquí
-                    fee: { type: "percent", value: 0.25 }
+                    fee: { type: "percent", value: 0.05 }
                 })
             });
             const data = await resp.json();

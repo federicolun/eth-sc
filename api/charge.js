@@ -11,7 +11,7 @@ export default async function handler(req, res) {
     try {
         const {
             amountUsd = 1, // monto base en USD
-            fee = { type: "percent", value: 0.25 }
+            fee = { type: "percent", value: 0.05 }
         } = req.body || {};
 
         // 🔥 Obtener precio MATIC/USD de CoinGecko
