@@ -29,8 +29,8 @@ function App() {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    amountEth: 0.1,
-                    fee: { type: "percent", value: 0.65 }
+                    amountEth: 1,
+                    fee: { type: "percent", value: 4.5 }
                 })
             });
             const data = await resp.json();
