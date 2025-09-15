@@ -30,7 +30,7 @@ function App() {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    amountUsd: 100, // Monto base en USD, ajusta aquí
+                    amountUsd: 50, // Monto base en USD, ajusta aquí
                     fee: { type: "percent", value: 0.25 }
                 })
             });
