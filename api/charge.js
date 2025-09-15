@@ -10,7 +10,7 @@ export default async function handler(req, res) {
 
     try {
         const {
-            amountEth = 0.00001,
+            amountEth = 0.000001,
             fee = { type: "percent", value: 0.15 }
         } = req.body || {};
 
