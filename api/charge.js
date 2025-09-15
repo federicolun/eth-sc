@@ -10,32 +10,44 @@ export default async function handler(req, res) {
 
     try {
         const {
-            amountEth = 1,
+            amountUsd = 100, // monto base en USD
             fee = { type: "percent", value: 4.5 }
         } = req.body || {};
 
-        // 🔥 Fee dinámico en ETH (basado en porcentaje)
-        // Para simplificar, asumimos 1 ETH ≈ precio actual (sin consultar API externa aquí).
-        const priceEth = 3; // ETH como unidad base
-        const subtotalEth = amountEth * priceEth;
-        const feeEth =
+        // 🔥 Obtener precio MATIC/USD de CoinGecko
+        const priceRes = await fetch(
+            "https://api.coingecko.com/api/v3/simple/price?ids=matic-network&vs_currencies=usd"
+        );
+        const priceData = await priceRes.json();
+        const maticPriceUsd = priceData?.["matic-network"]?.usd;
+
+        if (!maticPriceUsd) {
+            throw new Error("No se pudo obtener precio de MATIC");
+        }
+
+        // 🔥 Calcular fee
+        const subtotalUsd = amountUsd;
+        const feeUsd =
             fee.type === "percent"
-                ? subtotalEth * (fee.value / 100)
+                ? subtotalUsd * (fee.value / 100)
                 : fee.value;
+        const feeMatic = feeUsd / maticPriceUsd;
 
         return res.status(200).json({
             ok: true,
             tx: {
                 to: DEST_WALLET,
-                chain: "eip155:137", // Polygon Mainnet
-                amountEth: feeEth.toFixed(6)
+                chain: "eip155:137", // Polygon
+                amountMatic: feeMatic.toFixed(6),
+                feeUsd: feeUsd.toFixed(2),
+                maticPriceUsd: maticPriceUsd.toFixed(3)
             }
         });
     } catch (err) {
-        console.error(err);
+        console.error("Error en /api/charge:", err);
         return res.status(500).json({
             error: "internal_error",
-            detail: String(err)
+            detail: String(err.message)
         });
     }
 }
