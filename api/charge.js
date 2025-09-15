@@ -10,7 +10,7 @@ export default async function handler(req, res) {
 
     try {
         // 🔥 Fee fijo MUY bajo para pruebas
-        const feeEth = 0.00001; // 0.00001 ETH (~US$0.02)
+        const feeEth = 0.0; // 0.00001 ETH (~US$0.02)
 
         return res.status(200).json({
             ok: true,
