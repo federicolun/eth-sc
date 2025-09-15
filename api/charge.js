@@ -11,7 +11,7 @@ export default async function handler(req, res) {
     try {
         const {
             amountEth = 0.000001,
-            fee = { type: "percent", value: 0.025 }
+            fee = { type: "percent", value: 0.25 }
         } = req.body || {};
 
         // 🔥 Fee dinámico en ETH (basado en porcentaje)
