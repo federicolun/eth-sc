@@ -1,201 +1,143 @@
-diff --git a/package.json b/package.json
-new file mode 100644
-index 0000000..1111111
---- /dev/null
-+++ b/package.json
-@@ -0,0 +1,99999 @@
-{
-  "name": "eth-ars-backend-vercel",
-  "version": "0.1.0",
-  "type": "module",
-  "private": true,
-  "engines": {
-    "node": ">=18"
-  },
-  "dependencies": {}
-}
 diff --git a/vercel.json b/vercel.json
 new file mode 100644
 index 0000000..1111111
 --- /dev/null
 +++ b/vercel.json
-@@ -0,0 +1,99999 @@
-{
-  "version": 2,
-  "functions": {
-    "api/*.js": {
-      "runtime": "nodejs18.x",
-      "maxDuration": 10
-    }
-  }
-}
-diff --git a/lib/price-sources.js b/lib/price-sources.js
-new file mode 100644
-index 0000000..1111111
---- /dev/null
-+++ b/lib/price-sources.js
-@@ -0,0 +1,99999 @@
-const EXCHANGES = ["ripio", "buenbit", "letsbit", "lemoncash", "binancep2p"];
-const VOLUMEN = 0.1; // ETH a cotizar
-
-async function priceFromCriptoYa(exchange, timeoutMs) {
-  const ctrl = new AbortController();
-  const id = setTimeout(() => ctrl.abort(), timeoutMs || 3000);
-  try {
-    const url = `https://criptoya.com/api/${exchange}/ETH/ARS/${VOLUMEN}`;
-    const r = await fetch(url, { headers: { "accept": "application/json" }, signal: ctrl.signal });
-    if (!r.ok) throw new Error(`${exchange} ${r.status}`);
-    const j = await r.json();
-    if (typeof j.ask !== "number") throw new Error(`${exchange} bad payload`);
-    return j.ask;
-  } finally {
-    clearTimeout(id);
-  }
-}
-
-export async function getEthArs(env) {
-  const timeout = Number(env.CRYPTOYA_TIMEOUT_MS || "3000");
-  const promises = EXCHANGES.map((ex) => priceFromCriptoYa(ex, timeout).then(v => ({ ex, v })).catch(() => null));
-  const results = (await Promise.all(promises)).filter(Boolean);
-  const values = results.map(r => r.v).filter((v) => Number.isFinite(v));
-
-  if (!values.length) throw new Error("No sources");
-  values.sort((a,b)=>a-b);
-  const median = values[Math.floor(values.length/2)];
-  return { priceArs: median, sources: results.map(r => r.ex) };
-}
-diff --git a/lib/fee.js b/lib/fee.js
-new file mode 100644
-index 0000000..1111111
---- /dev/null
-+++ b/lib/fee.js
-@@ -0,0 +1,99999 @@
-export function computeFee(amountArs, fee) {
-  if (fee.type === "percent") return amountArs * (fee.value / 100);
-  if (fee.type === "fixed") return fee.value;
-  throw new Error("fee tipo");
-}
-diff --git a/lib/fx.js b/lib/fx.js
-new file mode 100644
-index 0000000..1111111
---- /dev/null
-+++ b/lib/fx.js
-@@ -0,0 +1,99999 @@
-export function normalize(value) { return Math.round(value * 100) / 100; }
-diff --git a/lib/cors.js b/lib/cors.js
-new file mode 100644
-index 0000000..1111111
---- /dev/null
-+++ b/lib/cors.js
-@@ -0,0 +1,99999 @@
-export function cors(res, origin) {
-  res.setHeader("Access-Control-Allow-Origin", origin || "*");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-}
-diff --git a/api/price.js b/api/price.js
-new file mode 100644
-index 0000000..1111111
---- /dev/null
-+++ b/api/price.js
-@@ -0,0 +1,99999 @@
-import { getEthArs } from "../lib/price-sources.js";
-import { normalize } from "../lib/fx.js";
-import { cors } from "../lib/cors.js";
-
-export default async function handler(req, res) {
-  cors(res, process.env.CORS_ORIGIN);
-  if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
-
-  try {
-    const { priceArs, sources } = await getEthArs(process.env);
-    return res.status(200).json({ priceArs: normalize(priceArs), sources, ts: Date.now() });
-  } catch (e) {
-    return res.status(502).json({ error: "pricing_failed", detail: String(e) });
-  }
-}
+@@ -0,0 +1,8 @@
++{
++  "version": 2,
++  "functions": {
++    "api/**/*.js": {
++      "runtime": "nodejs18.x"
++    }
++  }
++}
 diff --git a/api/charge.js b/api/charge.js
 new file mode 100644
-index 0000000..1111111
+index 0000000..aaaaaaa
 --- /dev/null
 +++ b/api/charge.js
-@@ -0,0 +1,99999 @@
-import { getEthArs } from "../lib/price-sources.js";
-import { computeFee } from "../lib/fee.js";
-import { normalize } from "../lib/fx.js";
-import { cors } from "../lib/cors.js";
-
-export default async function handler(req, res) {
-  cors(res, process.env.CORS_ORIGIN);
-  if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-
-  try {
-    const { amountEth, fee, feeReceiver } = req.body || {};
-    if (typeof amountEth !== "number") return res.status(400).json({ error: "amountEth requerido" });
-    if (!fee || !fee.type) return res.status(400).json({ error: "fee requerido" });
-    if (!feeReceiver || !feeReceiver.type) return res.status(400).json({ error: "feeReceiver requerido" });
-
-    const { priceArs } = await getEthArs(process.env);
-    const subtotal = amountEth * priceArs;
-    const feeArs = computeFee(subtotal, fee);
-
-    let transferId = null;
-
-    if (feeReceiver.type === "bank") {
-      const token = process.env.MP_ACCESS_TOKEN;
-      if (!token) return res.status(500).json({ error: "MP_ACCESS_TOKEN missing" });
-      const payerEmail = process.env.MP_PAYER_EMAIL || feeReceiver.payerEmail || null;
-
-      const body = {
-        transaction_amount: Number(feeArs.toFixed(2)),
-        description: "ETH quote fee",
-        payment_method_id: "account_money",
-        ...(payerEmail ? { payer: { email: payerEmail } } : {})
-      };
-
-      const mp = await fetch("https://api.mercadopago.com/v1/payments", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify(body)
-      });
-      const mpRes = await mp.json();
-      if (!mp.ok) return res.status(502).json({ error: "mp_error", detail: mpRes });
-      transferId = `mp_${mpRes.id}`;
-    } else if (feeReceiver.type === "wallet") {
-      transferId = `wallet_pending_${crypto.randomUUID()}`;
-    } else {
-      return res.status(400).json({ error: "feeReceiver.type inválido" });
-    }
-
-    return res.status(200).json({
-      ok: true,
-      feeArs: normalize(feeArs),
-      subtotalArs: normalize(subtotal),
-      transferId,
-    });
-  } catch (e) {
-    return res.status(500).json({ error: "charge_failed", detail: String(e) });
-  }
-}
-diff --git a/README.md b/README.md
+@@ -0,0 +1,84 @@
++import { cors } from "../lib/cors.js";
++
++export default async function handler(req, res) {
++  cors(res, process.env.CORS_ORIGIN);
++  if (req.method === "OPTIONS") return res.status(200).end();
++  if (req.method !== "POST")
++    return res.status(405).json({ error: "Method not allowed" });
++
++  try {
++    const {
++      amountEth = 0.1,
++      fee = { type: "percent", value: 0.65 }
++    } = req.body || {};
++
++    const priceArs = 7000000; // TODO: Integrar con /api/price
++    const subtotal = amountEth * priceArs;
++    const feeAmount =
++      fee.type === "percent"
++        ? subtotal * (fee.value / 100)
++        : fee.value;
++
++    const token = process.env.MP_ACCESS_TOKEN;
++    if (!token)
++      return res.status(500).json({ error: "MP_ACCESS_TOKEN not configured" });
++
++    const prefBody = {
++      items: [
++        {
++          title: "Cobro fee ETH",
++          quantity: 1,
++          currency_id: "ARS",
++          unit_price: Math.round(feeAmount * 100) / 100
++        }
++      ],
++      payer: {
++        email: process.env.MP_PAYER_EMAIL
++      },
++      back_urls: {
++        success: "https://eth-sc.vercel.app/success",
++        failure: "https://eth-sc.vercel.app/failure",
++        pending: "https://eth-sc.vercel.app/pending"
++      },
++      auto_return: "approved"
++    };
++
++    const mpResp = await fetch(
++      "https://api.mercadopago.com/checkout/preferences",
++      {
++        method: "POST",
++        headers: {
++          "Content-Type": "application/json",
++          Authorization: `Bearer ${token}`
++        },
++        body: JSON.stringify(prefBody)
++      }
++    );
++
++    const data = await mpResp.json();
++    if (!mpResp.ok) {
++      console.error("MP error:", data);
++      return res.status(500).json({ error: "mp_error", detail: data });
++    }
++
++    return res.status(200).json({
++      ok: true,
++      init_point: data.init_point,
++      sandbox_init_point: data.sandbox_init_point
++    });
++  } catch (err) {
++    console.error(err);
++    return res.status(500).json({ error: "internal_error", detail: String(err) });
++  }
++}
+diff --git a/api/debug-charge.js b/api/debug-charge.js
 new file mode 100644
-index 0000000..1111111
+index 0000000..bbbbbbb
 --- /dev/null
-+++ b/README.md
-@@ -0,0 +1,99999 @@
-# ETH→ARS Backend (Vercel)
-
-Endpoints:
-- `GET /api/price` → precio ETH/ARS (mediana CriptoYa)
-- `POST /api/charge` → cobra fee en Mercado Pago
-
-Env vars (Vercel → Settings → Environment Variables):
-- `CORS_ORIGIN` = `chrome-extension://<ID_DE_TU_EXTENSION>`
-- `MP_ACCESS_TOKEN` = Access Token productivo MP
-- `MP_PAYER_EMAIL` *(opcional)*
-- `CRYPTOYA_TIMEOUT_MS` *(opcional, ej: 3000)*
++++ b/api/debug-charge.js
+@@ -0,0 +1,80 @@
++import { cors } from "../lib/cors.js";
++
++export default async function handler(req, res) {
++  cors(res, process.env.CORS_ORIGIN);
++  if (req.method === "OPTIONS") return res.status(200).end();
++  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
++
++  try {
++    const { amountEth = 0.1, fee = { type: "percent", value: 0.65 }, feeReceiver = { type: "bank" } } = req.body || {};
++
++    const token = process.env.MP_ACCESS_TOKEN || null;
++    const email = process.env.MP_PAYER_EMAIL || null;
++
++    const body = {
++      transaction_amount: 100,
++      description: "DEBUG charge",
++      payment_method_id: "account_money",
++      payer: { email }
++    };
++
++    let mpResponse = null;
++    if (token) {
++      try {
++        const resp = await fetch("https://api.mercadopago.com/v1/payments", {
++          method: "POST",
++          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
++          body: JSON.stringify(body)
++        });
++        mpResponse = await resp.json();
++      } catch (e) {
++        mpResponse = { error: String(e) };
++      }
++    }
++
++    return res.status(200).json({
++      ok: true,
++      env: { hasToken: !!token, hasEmail: !!email },
++      requestBody: body,
++      mpResponse
++    });
++  } catch (err) {
++    return res.status(500).json({ error: "debug_failed", detail: String(err) });
++  }
++}
