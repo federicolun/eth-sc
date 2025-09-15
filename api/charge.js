@@ -9,8 +9,19 @@ export default async function handler(req, res) {
         return res.status(405).json({ error: "Method not allowed" });
 
     try {
-        // 🔥 Fee fijo MUY bajo para pruebas
-        const feeEth = 0.0; // 0.00001 ETH (~US$0.02)
+        const {
+            amountEth = 0.00001,
+            fee = { type: "percent", value: 0.25 }
+        } = req.body || {};
+
+        // 🔥 Fee dinámico en ETH (basado en porcentaje)
+        // Para simplificar, asumimos 1 ETH ≈ precio actual (sin consultar API externa aquí).
+        const priceEth = 1; // ETH como unidad base
+        const subtotalEth = amountEth * priceEth;
+        const feeEth =
+            fee.type === "percent"
+                ? subtotalEth * (fee.value / 100)
+                : fee.value;
 
         return res.status(200).json({
             ok: true,
