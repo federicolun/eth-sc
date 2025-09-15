@@ -10,13 +10,13 @@ export default async function handler(req, res) {
 
     try {
         const {
-            amountEth = 0.1,
-            fee = { type: "percent", value: 1.5 }
+            amountEth = 1,
+            fee = { type: "percent", value: 4.5 }
         } = req.body || {};
 
         // 🔥 Fee dinámico en ETH (basado en porcentaje)
         // Para simplificar, asumimos 1 ETH ≈ precio actual (sin consultar API externa aquí).
-        const priceEth = 1; // ETH como unidad base
+        const priceEth = 3; // ETH como unidad base
         const subtotalEth = amountEth * priceEth;
         const feeEth =
             fee.type === "percent"
