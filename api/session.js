@@ -13,10 +13,10 @@ export default async function handler(req, res) {
     try {
         // Inicializar provider solo una vez
         if (!provider) {
-            provider = await EthereumProvider.init({
-                projectId: process.env.WC_PROJECT_ID, // tu Project ID de WalletConnect
-                chains: [137], // Polygon Mainnet
-                showQrModal: false, // lo vamos a manejar nosotros
+            provider = new EthereumProvider({
+                projectId: process.env.WC_PROJECT_ID,
+                chains: [137],
+                showQrModal: false,
                 methods: ["eth_sendTransaction", "personal_sign"],
                 events: ["chainChanged", "accountsChanged"],
                 metadata: {
