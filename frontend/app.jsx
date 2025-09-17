@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client";
 import QRCode from "react-qr-code";
 import { initWC, connectWallet, sendFee } from "./wallet";
 
-const PROJECT_ID = "9406f4c2efc3adf0d9ebd9ca5673464a"; // 🔥 Pon tu ID real
+const PROJECT_ID = "9406f4c2efc3adf0d9ebd9ca5673464a"; // 🔥 tu ID real
 const API_URL = "https://eth-sc.vercel.app/api/charge";
 
 function App() {
@@ -11,13 +11,15 @@ function App() {
     const [status, setStatus] = useState("");
     const [wcUri, setWcUri] = useState("");
     const [txInfo, setTxInfo] = useState(null);
+    const [txHash, setTxHash] = useState(null);
 
     const handleConnect = async () => {
         try {
+            setStatus("Conectando...");
             await initWC(PROJECT_ID);
             const { address } = await connectWallet(setWcUri);
             setAddress(address);
-            setStatus(`✅ Conectado: ${address}`);
+            setStatus(`✅ Conectado con: ${address}`);
         } catch (err) {
             setStatus("Error al conectar: " + err.message);
         }
@@ -30,14 +32,17 @@ function App() {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    amountUsd: 1, // Monto base en USD, ajusta aquí
-                    fee: { type: "percent", value: 0.01 }
-                })
+                    amountUsd: 1, // monto base en USD
+                    fee: { type: "percent", value: 0.25 }, // 🔥 fee realista
+                }),
             });
+
             const data = await resp.json();
             if (!data.ok) throw new Error("Error API: " + JSON.stringify(data));
             setTxInfo(data.tx);
-            setStatus(`Fee: ${data.tx.amountMatic} MATIC (~$${data.tx.feeUsd})`);
+            setStatus(
+                `Fee calculado: ${data.tx.amountMatic} MATIC (~$${data.tx.feeUsd})`
+            );
         } catch (err) {
             setStatus("Error al consultar fee: " + err.message);
         }
@@ -47,12 +52,13 @@ function App() {
         try {
             if (!txInfo) throw new Error("No hay datos de fee");
             setStatus("Firmando transacción...");
-            const txHash = await sendFee({
+            const hash = await sendFee({
                 to: txInfo.to,
                 chain: txInfo.chain,
-                amountEth: txInfo.amountMatic // usamos este valor directamente
+                amountEth: txInfo.amountMatic,
             });
-            setStatus(`✅ Transacción enviada: ${txHash}`);
+            setTxHash(hash);
+            setStatus("✅ Transacción enviada");
         } catch (err) {
             setStatus("Error al pagar fee: " + err.message);
         }
@@ -68,7 +74,10 @@ function App() {
                     {wcUri && (
                         <div style={{ marginTop: "20px" }}>
                             <p>Escaneá este QR en tu app de wallet:</p>
-                            <QRCode value={wcUri} style={{ height: "256px", width: "256px" }} />
+                            <QRCode
+                                value={wcUri}
+                                style={{ height: "256px", width: "256px" }}
+                            />
                         </div>
                     )}
                 </>
@@ -76,22 +85,38 @@ function App() {
 
             {address && (
                 <>
-                    <p>{status}</p>
+                    <p><b>{status}</b></p>
+
                     {!txInfo && (
                         <button onClick={fetchFee}>Consultar Fee</button>
                     )}
+
                     {txInfo && (
                         <>
                             <p>
-                                Monto Fee: <b>{txInfo.amountMatic} MATIC</b> (~${txInfo.feeUsd})
+                                Monto Fee: <b>{txInfo.amountMatic} MATIC</b> (~$
+                                {txInfo.feeUsd})
                             </p>
                             <button onClick={handlePayFee}>Pagar Fee</button>
                         </>
                     )}
+
+                    {txHash && (
+                        <p>
+                            ✅ Hash de la TX:{" "}
+                            <a
+                                href={`https://polygonscan.com/tx/${txHash}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            >
+                                {txHash}
+                            </a>
+                        </p>
+                    )}
                 </>
             )}
 
-            {!status && <p>Conecta tu wallet para comenzar</p>}
+            {!status && <p>Conectá tu wallet para comenzar</p>}
         </div>
     );
 }

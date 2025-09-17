@@ -15,22 +15,22 @@ export async function initWC(projectId) {
         },
     });
 
-    // 🔥 Suscribirse a eventos globales
-    client.on("session_request", (event) => {
-        console.log("⚡ Session request recibido:", event);
+    // 🔥 Eventos reales soportados en SignClient v2
+    client.on("session_proposal", (proposal) => {
+        console.log("📡 Propuesta de sesión:", proposal);
     });
 
-    client.on("session_delete", () => {
-        console.log("❌ Sesión eliminada");
+    client.on("session_update", ({ topic, params }) => {
+        console.log("🔄 Sesión actualizada:", topic, params);
+    });
+
+    client.on("session_delete", ({ topic }) => {
+        console.log("❌ Sesión eliminada:", topic);
         session = null;
     });
 
-    client.on("session_update", (event) => {
-        console.log("🔄 Sesión actualizada:", event);
-    });
-
-    client.on("session_event", (event) => {
-        console.log("📡 Evento de sesión:", event);
+    client.on("session_event", ({ topic, params }) => {
+        console.log("⚡ Evento de sesión:", topic, params);
     });
 
     return client;
@@ -42,8 +42,8 @@ export async function connectWallet(setWcUri) {
     const { uri, approval } = await client.connect({
         requiredNamespaces: {
             eip155: {
-                methods: ["eth_sendTransaction", "personal_sign"], // añadí personal_sign
-                chains: ["eip155:137"], // 🔥 ahora Polygon
+                methods: ["eth_sendTransaction", "personal_sign"],
+                chains: ["eip155:137"], // Polygon
                 events: ["accountsChanged", "chainChanged"],
             },
         },
@@ -69,7 +69,7 @@ export async function sendFee(txData) {
         from: address,
         to: txData.to,
         value: ethers.parseEther(txData.amountEth).toString(),
-        gas: "0x5208", // 21000 gas (mínimo)
+        gas: "0x5208",
     };
 
     console.log("🚀 Enviando TX:", tx);
