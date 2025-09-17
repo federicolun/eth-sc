@@ -15,7 +15,7 @@ export async function initWC(projectId) {
         },
     });
 
-    // 🔥 Eventos reales soportados en SignClient v2
+    // Eventos de sesión
     client.on("session_proposal", (proposal) => {
         console.log("📡 Propuesta de sesión:", proposal);
     });
@@ -69,7 +69,7 @@ export async function sendFee(txData) {
         from: address,
         to: txData.to,
         value: ethers.parseEther(txData.amountEth).toString(),
-        gas: "0x5208",
+        gas: "0x5208", // 21000 gas
     };
 
     console.log("🚀 Enviando TX:", tx);
@@ -85,4 +85,22 @@ export async function sendFee(txData) {
 
     console.log("✅ TX enviada, hash:", result);
     return result;
+}
+
+export async function signMessage(message) {
+    if (!client || !session) throw new Error("No hay sesión activa");
+
+    const address = session.namespaces.eip155.accounts[0].split(":")[2];
+
+    const signature = await client.request({
+        topic: session.topic,
+        chainId: "eip155:137",
+        request: {
+            method: "personal_sign",
+            params: [message, address],
+        },
+    });
+
+    console.log("✅ Firma generada:", signature);
+    return { address, message, signature };
 }

@@ -1,9 +1,9 @@
 ﻿import React, { useState } from "react";
 import ReactDOM from "react-dom/client";
 import QRCode from "react-qr-code";
-import { initWC, connectWallet, sendFee } from "./wallet";
+import { initWC, connectWallet, sendFee, signMessage } from "./wallet";
 
-const PROJECT_ID = "9406f4c2efc3adf0d9ebd9ca5673464a"; // 🔥 tu ID real
+const PROJECT_ID = "9406f4c2efc3adf0d9ebd9ca5673464a"; // tu ID real
 const API_URL = "https://eth-sc.vercel.app/api/charge";
 
 function App() {
@@ -12,6 +12,7 @@ function App() {
     const [wcUri, setWcUri] = useState("");
     const [txInfo, setTxInfo] = useState(null);
     const [txHash, setTxHash] = useState(null);
+    const [signature, setSignature] = useState(null);
 
     const handleConnect = async () => {
         try {
@@ -32,8 +33,8 @@ function App() {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    amountUsd: 1, // monto base en USD
-                    fee: { type: "percent", value: 0.25 }, // 🔥 fee realista
+                    amountUsd: 1,
+                    fee: { type: "percent", value: 0.25 },
                 }),
             });
 
@@ -64,6 +65,19 @@ function App() {
         }
     };
 
+    const handleSign = async () => {
+        try {
+            setStatus("Solicitando firma...");
+            const result = await signMessage(
+                "Soy Federico y acepto los términos - " + Date.now()
+            );
+            setSignature(result);
+            setStatus(`✅ Firma validada por ${result.address}`);
+        } catch (err) {
+            setStatus("Error al firmar: " + err.message);
+        }
+    };
+
     return (
         <div style={{ padding: "20px", fontFamily: "sans-serif" }}>
             <h1>ETH/MATIC Fee App</h1>
@@ -88,7 +102,10 @@ function App() {
                     <p><b>{status}</b></p>
 
                     {!txInfo && (
-                        <button onClick={fetchFee}>Consultar Fee</button>
+                        <>
+                            <button onClick={fetchFee}>Consultar Fee</button>
+                            <button onClick={handleSign}>Validar Firma</button>
+                        </>
                     )}
 
                     {txInfo && (
@@ -111,6 +128,13 @@ function App() {
                             >
                                 {txHash}
                             </a>
+                        </p>
+                    )}
+
+                    {signature && (
+                        <p>
+                            ✅ Firma generada: <br />
+                            <small>{signature.signature}</small>
                         </p>
                     )}
                 </>
