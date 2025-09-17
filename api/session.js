@@ -1,5 +1,5 @@
 ﻿import { cors } from "../lib/cors.js";
-import EthereumProvider from "@walletconnect/ethereum-provider";
+import { EthereumProvider } from "@walletconnect/ethereum-provider";
 
 let provider;
 
@@ -11,11 +11,10 @@ export default async function handler(req, res) {
     }
 
     try {
-        // Inicializar provider solo una vez
         if (!provider) {
-            provider = new EthereumProvider({
+            provider = await EthereumProvider.init({
                 projectId: process.env.WC_PROJECT_ID,
-                chains: [137],
+                chains: [137], // Polygon
                 showQrModal: false,
                 methods: ["eth_sendTransaction", "personal_sign"],
                 events: ["chainChanged", "accountsChanged"],
@@ -28,7 +27,7 @@ export default async function handler(req, res) {
             });
         }
 
-        // Crear sesión → genera URI de conexión
+        // Crear sesión → devuelve URI
         const wcUri = await provider.connect();
 
         return res.status(200).json({
